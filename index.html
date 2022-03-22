@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+	
+	<title>Участки больницы №5 Иркутска</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="docs/images/favicon.ico" />
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js" integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew==" crossorigin=""></script>
+
+	<script src="js/turf.min.js" charset="utf-8"></script>
+	<style>
+		html, body {
+			height: 100%;
+			margin: 0;
+		}
+		#map {
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+
+	<style>#map { width: 100%; height: 100%; }
+.info { padding: 6px 8px; font: 14px/16px Arial, Helvetica, sans-serif; background: white; background: rgba(255,255,255,0.8); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 5px; } .info h4 { margin: 0 0 5px; color: #777; }
+.legend { text-align: left; line-height: 18px; color: #555; } .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.7; }</style>
+</head>
+<body>
+
+<div id='map'></div>
+<script src="js/data.js" charset="utf-8"></script>
+<script type="text/javascript">
+	var map = L.map('map').setView([52.277388, 104.263123], 14.43);
+	var bcolor = ['red','blue','green','#df73ff','#ff9900', '#d3039e','#48db68','#202e4b','#e16d40','#4153dc','#7b2d2d'];
+	var fcolor = ['#a00000','#2a52be','#00a000','#ce29ff','#ffa500','#fc0fc0','#3a8d49','#999ed1','#d42b2b','#98a3c3','#dd8973'];
+	
+	var prof_21 = L.marker([52.283996, 104.256657]).bindPopup('ОГБУЗ ИГБ № 5, отделение сестринского ухода');
+	var chel_20 = L.marker([52.283087, 104.258328]).bindPopup('ОГБУЗ ИГБ № 5, женская консультация');
+	var chel_8 = L.marker([52.283925, 104.257367]).bindPopup('ОГБУЗ ИГБ № 5, физиотерапевтическое отделение');
+	var chel_14 = L.marker([52.283208, 104.257663]).bindPopup('ОГБУЗ ИГБ № 5');
+	var poly = L.layerGroup([prof_21, chel_20, chel_8, chel_14]);
+	//https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw
+	
+	L.tileLayer('http://tile2.maps.2gis.com/tiles?x={x}&y={y}&z={z}', {
+		maxZoom: 18,
+		attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, ' +
+			'<a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery � <a href="https://www.mapbox.com/">Mapbox</a>',
+		id: 'mapbox/light-v9',
+		tileSize: 512,
+		zoomOffset: -1
+	}).addTo(map);
+
+	// Информация об участке
+	var info = L.control();
+
+	info.onAdd = function (map) {
+		this._div = L.DomUtil.create('div', 'info');
+		this.update();
+		return this._div;
+	};
+
+	info.update = function (props) {
+		this._div.innerHTML = '<h4>ОГБУЗ ИГБ № 5</h4>' +  (props ?
+			'<b>Участок №' + props.num + '</b><br />Количество адресов:' + props.count
+			: 'Наведите на участок');
+	};
+	info.addTo(map);
+
+
+	// Добавление точек больницы
+	poly.addTo(map);
+	
+	//Функция создания полигона
+	function MakePoly(n,pointset, message, bcolor, fcolor, map){
+		let p = [];
+		let p2 = L.layerGroup();
+		for (var i = 0; i < pointset.length; i++) {
+			var a = turf.point([pointset[i][0],pointset[i][1]], {name: pointset[i][2]});
+			var b = L.marker([pointset[i][0],pointset[i][1]]).bindPopup(pointset[i][2]);
+			p.push(a);
+			//Раскоментив строчку ниже можно посмотреть все точки на карте (затратно по памяти)
+			//p2.addLayer(b);
+		}
+		// Параметр maxEdge влияет на вогнутость полигона 
+		var options = {units: 'kilometers', maxEdge: 0.2};
+		var points = turf.featureCollection(p);
+		//var p2 = L.layerGroup(p);
+		p2.addTo(map)
+		var hull = turf.concave(points, options);
+		
+		var geojson = L.geoJson(hull).addTo(map);
+		
+		var polygon = L.polygon(hull.geometry.coordinates[0], {
+			count: pointset.length,
+			num: n,
+    			color: bcolor,
+    			fillColor: fcolor,
+    			fillOpacity: 0.5
+			}).bindPopup(message);
+		
+		polygon.on({
+			mouseover: highlightFeature,
+			mouseout: resetHighlight
+			   })
+
+		polygon.addTo(map);
+	}
+	
+	//Создание полигонов участвков
+	for (var i = 0; i < pointset.length; i++) {
+		var n = i+1;
+		var message = n + ' участок';
+		MakePoly(n,pointset[i], message, bcolor[i], fcolor[i], map)
+	}
+
+	//Изменение вида при наведении
+	function highlightFeature(e) {
+		var layer = e.target;
+		
+		layer.setStyle({
+			weight: 5,
+			dashArray: '',
+			fillOpacity: 0.7
+		});
+
+		if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+			layer.bringToFront();
+		}
+
+		info.update(layer.options);
+	}
+
+	function resetHighlight(e) {
+		var layer = e.target;
+		layer.setStyle({
+			weight: 2,
+			fillOpacity: 0.5
+		});
+		info.update();
+	}
+
+
+</script>
+
+
+
+</body>
+</html>
